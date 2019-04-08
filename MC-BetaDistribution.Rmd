@@ -1,0 +1,93 @@
+---
+title: "Monte Carlo: Beta Distribution"
+output: html_notebook
+---
+
+First, it is important to understand some Bayesian statistic fundamentals. From Towards Data Science (https://towardsdatascience.com/a-zero-math-introduction-to-markov-chain-monte-carlo-methods-dcba889e0c50):
+
+In Bayesian statistics, the distribution representing our beliefs about a parameter is called the prior distribution, because it captures our beliefs prior to seeing any data.
+
+The likelihood distribution summarizes what the observed data are telling us, by representing a range of parameter values accompanied by the likelihood that each parameter explains the data we are observing.
+
+The key to Bayesian analysis, however, is to combine the prior and the likelihood distributions to determine the posterior distribution. This tells us which parameter values maximize the chance of observing the particular data that we did, taking into account our prior beliefs.
+
+Monte Carlo simulations are just a way of estimating a fixed parameter by repeatedly generating random numbers. By taking the random numbers generated and doing some computation on them, Monte Carlo simulations provide an approximation of a parameter where calculating it directly is impossible or prohibitively expensive.
+
+This Beta Distribution Monte Carlo simulation is for issues that may not have a normal distribution. Beta distributions have three characteristics:
+- Values near the middle are more likely than values farther away.
+- The distribution may be lopsided.
+- The ends trail off indefinitely to ever more unlikely values, but there is no hard stop. A value far outside of 90% CI is possible, but not likely.
+
+First, you will need to enter the minimum, maximum, and mean/median of all of your observations.
+```{r}
+middle <- 5
+minimum <- 1
+maximum <- 10
+```
+
+Then, enter the number of trials/scenarios you would like to simulate. At least 10,000 trials/scenarios are recommended.
+```{r}
+trials <- 10000
+```
+
+The program will take care of the rest!
+```{r}
+relativeMean <- ((middle - minimum) / (maximum - minimum) * 4 + 1) / 6
+shapeAlpha <- relativeMean ^ 2 * (1 - relativeMean) * 6 ^ 2 - 1
+shapeBeta <- (1 - relativeMean) / relativeMean * shapeAlpha
+MCTable <- as.data.frame(matrix(0, ncol = 4, nrow = trials - 1))
+names(MCTable) <- c("relativeX" ,"results", "cumulativeProbability", "probDensity")
+relativeX <- 1 / trials
+i <- 1
+while (relativeX < 1) {
+  MCTable[i,1] <- relativeX
+  i <- i + 1
+  relativeX <- relativeX + (1/trials)
+}
+MCTable$results <- MCTable$relativeX * (maximum - minimum) + minimum
+MCTable$cumulativeProbability <- qbeta(MCTable$relativeX, (1/shapeAlpha), (1/shapeBeta))
+i <- 1
+while (i <= nrow(MCTable)) {
+  j <- i - 1
+  if (j == 0) {
+    MCTable[i,4] <- 0
+  } else {
+    MCTable[i,4] <- MCTable[i,3] - MCTable[j,3]
+  }
+  i <- i + 1
+}
+```
+
+The results of the Monte Carlo are visualized below.
+```{r}
+library(ggplot2)
+MCChart <- ggplot(data = MCTable,
+                      aes(x = MCTable$results, y = MCTable$probDensity)) + 
+  geom_line() +
+  geom_point() +
+  geom_area(colour = "darkgreen", 
+            fill = "darkgreen", 
+            alpha = .5) +
+  labs(title = "Monte Carlo Results - Beta Distribution",
+       x = "Result",
+       y = "Probability")
+MCChart
+```
+
+If you need to include a risk boundary, you can enter it here.
+```{r}
+riskBoundary <- 7
+```
+
+The risk boundary and its probability are visualized with the Monte Carlo's results below.
+```{r}
+belowBoundary <- subset(MCTable, MCTable$results < riskBoundary)
+riskProbability <- round(sum(belowBoundary$probDensity) * 100, digits = 2)
+riskGraph <- MCChart +
+  geom_vline(aes(xintercept = riskBoundary),
+             color = "red", 
+             linetype = "dashed", 
+             size = 1) +
+  labs(subtitle = paste("There is a", riskProbability, "percent chance the real world result will be below your risk boundary:", riskBoundary))
+riskGraph
+```

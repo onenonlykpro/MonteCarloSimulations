@@ -1,0 +1,84 @@
+---
+title: "Monte Carlo: Target Correlation"
+output: html_notebook
+---
+
+First, it is important to understand some Bayesian statistic fundamentals. From Towards Data Science (https://towardsdatascience.com/a-zero-math-introduction-to-markov-chain-monte-carlo-methods-dcba889e0c50):
+
+In Bayesian statistics, the distribution representing our beliefs about a parameter is called the prior distribution, because it captures our beliefs prior to seeing any data.
+
+The likelihood distribution summarizes what the observed data are telling us, by representing a range of parameter values accompanied by the likelihood that each parameter explains the data we are observing.
+
+The key to Bayesian analysis, however, is to combine the prior and the likelihood distributions to determine the posterior distribution. This tells us which parameter values maximize the chance of observing the particular data that we did, taking into account our prior beliefs.
+
+Monte Carlo simulations are just a way of estimating a fixed parameter by repeatedly generating random numbers. By taking the random numbers generated and doing some computation on them, Monte Carlo simulations provide an approximation of a parameter where calculating it directly is impossible or prohibitively expensive.
+
+In a target correlation Monte Carlo, we cause the randomly generated results for one variable to be correlated to another by stating a desired ("Target") correlation coefficient.
+
+First, you will need to enter the mean and standard deviation of all of your observations, and a target correlation.
+```{r}
+target <- 0.7
+variable1.mean <- 3.10
+variable1.sd <- 0.50
+variable2.mean <- 1.40
+variable2.sd <- 0.16
+```
+
+Then, enter the number of trials/scenarios and the confidence percentage ('90' for 90 percent C.I.) you would like to simulate. At least 10,000 trials/scenarios and 90 percent C.I. are recommended.
+```{r}
+trials <- 10000
+```
+
+The program will take care of the rest!
+```{r}
+MCTable <- as.data.frame(matrix(0, ncol = 5, nrow = trials))
+names(MCTable) <- c("controlA", "controlB", "targetA", "variableA.result", "variableB.result")
+i <- 1
+while (i <= trials) {
+  MCTable[i,1] <- qnorm(runif(1), mean = 0, sd = 1)
+  MCTable[i,2] <- qnorm(runif(1), mean = 0, sd = 1)
+  MCTable[i,3] <- MCTable[i,1] * target + (1 - target ^ 2) ^ 0.5 * MCTable[i,2]
+  i <- i + 1
+}
+MCTable$variableA.result <- variable1.mean + variable2.sd * MCTable$controlA
+MCTable$variableB.result <- variable2.mean + variable2.sd * MCTable$targetA
+```
+
+The results of the Monte Carlo are visualized below.
+```{r}
+library(ggplot2)
+MCChart <- ggplot(data = MCTable,
+                      aes(x = MCTable$variableA.result, y = MCTable$variableB.result)) + 
+  geom_point() +
+  labs(title = "Monte Carlo Results - Target Correlation",
+       subtitle = paste("The correlation from this simulation is", round(cor(MCTable$variableA.result, y = MCTable$variableB.result), digits = 2)), ## The formula used to find correlation here is wrong.
+       x = "Variable A",
+       y = "Variable B")
+MCChart
+```
+
+If you need to include a risk boundary, you can enter it here.
+```{r}
+riskBoundary.A <- 3.50
+riskBoundary.B <- 2.0
+```
+
+The risk boundary and its probability are visualized with the Monte Carlo's results below.
+```{r}
+belowBoundary.A <- subset(MCTable, MCTable$variableA.result < riskBoundary.A)
+riskProbability.A <- round((nrow(belowBoundary.A) / trials) * 100, digits = 2)
+belowBoundary.B <- subset(MCTable, MCTable$variableB.result < riskBoundary.B)
+riskProbability.B <- round((nrow(belowBoundary.B) / trials) * 100, digits = 2)
+riskGraph <- MCChart +
+  geom_vline(aes(xintercept = riskBoundary.A),
+             color = "red", 
+             linetype = "dashed", 
+             size = 1) +
+  geom_hline(aes(yintercept = riskBoundary.B),
+             color = "blue", 
+             linetype = "dashed", 
+             size = 1) +
+  labs(subtitle = paste("There is a", round(((riskProbability.A/100) * (riskProbability.B/100)) * 100, digits = 2), "percent chance the real world result will be below both of your risk boundaries."),
+       caption = paste0("The correlation from this simulation is ", round(cor(MCTable$variableA.result, y = MCTable$variableB.result), digits = 2), "."))
+riskGraph
+```

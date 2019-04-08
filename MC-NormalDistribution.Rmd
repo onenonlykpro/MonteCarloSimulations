@@ -1,0 +1,81 @@
+---
+title: "Monte Carlo: Normal Distribution"
+output: html_notebook
+---
+First, it is important to understand some Bayesian statistic fundamentals. From Towards Data Science (https://towardsdatascience.com/a-zero-math-introduction-to-markov-chain-monte-carlo-methods-dcba889e0c50):
+
+In Bayesian statistics, the distribution representing our beliefs about a parameter is called the prior distribution, because it captures our beliefs prior to seeing any data.
+
+The likelihood distribution summarizes what the observed data are telling us, by representing a range of parameter values accompanied by the likelihood that each parameter explains the data we are observing.
+
+The key to Bayesian analysis, however, is to combine the prior and the likelihood distributions to determine the posterior distribution. This tells us which parameter values maximize the chance of observing the particular data that we did, taking into account our prior beliefs.
+
+Monte Carlo simulations are just a way of estimating a fixed parameter by repeatedly generating random numbers. By taking the random numbers generated and doing some computation on them, Monte Carlo simulations provide an approximation of a parameter where calculating it directly is impossible or prohibitively expensive.
+
+This Monte Carlo simulation is for issues are are most likely to have a normal distribution. Normal distributions have three characteristics:
+- Values near the middle are more likely than values farther away.
+- The distribution is symmetrical, not lopsided -- the mean is exactly halfway between the upper and lower bounds of a 90% CI.
+- The ends trail off indefinitely to ever more unlikely values, but there is no hard stop. A value far outside of 90% CI is possible, but not likely.
+
+First, you will need to enter the minimum, maximum, and mean/median of all of your observations.
+```{r}
+middle <- 5
+minimum <- 1
+maximum <- 10
+```
+
+Then, enter the number of trials/scenarios and the confidence percentage ('90' for 90 percent C.I.) you would like to simulate. At least 10,000 trials/scenarios and 90 percent C.I. are recommended.
+```{r}
+trials <- 10000
+confidence <- 90
+```
+
+The program will take care of the rest!
+```{r}
+MCTable <- as.data.frame(matrix(0, ncol = 1, nrow = trials))
+names(MCTable) <- c("results")
+i <- 1
+zscore <- qnorm((1 - (confidence/100))/2, lower.tail = FALSE) * 2
+while (i <= trials) {
+  MCTable[i,1] <- qnorm(runif(1), middle, (maximum - minimum)/zscore)
+  i <- i + 1
+}
+```
+
+The results of the Monte Carlo are visualized below.
+```{r}
+library(ggplot2)
+MCHistogram <- ggplot(data = MCTable, aes(MCTable$results)) + 
+  geom_histogram(aes(y = stat(density)),
+                 col = "black",
+                 fill = "forestgreen",
+                 alpha = .8,
+                 bins = 50) +
+  geom_density(col = "blue",
+               lwd = 1,
+               fill = "navyblue",
+               alpha = .15) +
+  labs(title = "Monte Carlo Results - Normal Distribution",
+       x = "Simulated Result",
+       y = "Probability")
+MCHistogram
+```
+
+If you need to include a risk boundary, you can enter it here.
+```{r}
+riskBoundary <- 7
+```
+
+The risk boundary and its probability are visualized with the Monte Carlo's results below.
+```{r}
+MCTable$belowRisk <- ifelse(MCTable$results < riskBoundary, 1, 0)
+riskProbability <- as.double(mean(MCTable$belowRisk)) * 100
+riskGraph <- MCHistogram +
+  geom_vline(aes(xintercept = riskBoundary),
+             color = "red", 
+             linetype = "dashed", 
+             size = 1) +
+  labs(subtitle = paste("There is a", riskProbability, "percent chance the real world result will be below your risk boundary:", riskBoundary))
+riskGraph
+```
+

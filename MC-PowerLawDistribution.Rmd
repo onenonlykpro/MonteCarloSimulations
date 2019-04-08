@@ -1,0 +1,75 @@
+---
+title: "Monte Carlo: Power Law Distribution"
+output: html_notebook
+---
+
+First, it is important to understand some Bayesian statistic fundamentals. From Towards Data Science (https://towardsdatascience.com/a-zero-math-introduction-to-markov-chain-monte-carlo-methods-dcba889e0c50):
+
+In Bayesian statistics, the distribution representing our beliefs about a parameter is called the prior distribution, because it captures our beliefs prior to seeing any data.
+
+The likelihood distribution summarizes what the observed data are telling us, by representing a range of parameter values accompanied by the likelihood that each parameter explains the data we are observing.
+
+The key to Bayesian analysis, however, is to combine the prior and the likelihood distributions to determine the posterior distribution. This tells us which parameter values maximize the chance of observing the particular data that we did, taking into account our prior beliefs.
+
+Monte Carlo simulations are just a way of estimating a fixed parameter by repeatedly generating random numbers. By taking the random numbers generated and doing some computation on them, Monte Carlo simulations provide an approximation of a parameter where calculating it directly is impossible or prohibitively expensive.
+
+This Monte Carlo: Power Law Distribution simulation is for situations in which a relative change in one quantity results in a proportional relative change in another. The slope and intercept values are all that is needed to simulate this distribution.
+
+```{r}
+slope <- 2
+intercept <- 0
+```
+
+Then, enter the number of trials/scenarios you would like to simulate. At least 10,000 trials/scenarios are recommended.
+```{r}
+trials <- 10000
+```
+
+The program will take care of the rest!
+```{r}
+MCTable <- as.data.frame(matrix(0, ncol = 1, nrow = trials))
+names(MCTable) <- c("results")
+i <- 1
+while (i <= trials) {
+  MCTable[i,1] <- 10 ^ (log10(1 / runif(1)) * slope + intercept)
+  i <- i + 1
+}
+```
+
+The results of the Monte Carlo are visualized below.
+```{r}
+library(ggplot2)
+MCHistogram <- ggplot(data = MCTable, aes(MCTable$results)) + 
+  geom_histogram(aes(y = stat(density)),
+                 col = "black",
+                 fill = "forestgreen",
+                 alpha = .8,
+                 bins = 50) +
+  geom_density(col = "blue",
+               lwd = 1,
+               fill = "navyblue",
+               alpha = .15) +
+  labs(title = "Monte Carlo Results - Power Law Distribution",
+       x = "Simulated Result",
+       y = "Probability") +
+  xlim(NA, slope * 150)
+MCHistogram
+```
+
+If you need to include a risk boundary, you can enter it here.
+```{r}
+riskBoundary <- 7.5
+```
+
+The risk boundary and its probability are visualized with the Monte Carlo's results below.
+```{r}
+MCTable$belowRisk <- ifelse(MCTable$results < riskBoundary, 1, 0)
+riskProbability <- as.double(mean(MCTable$belowRisk)) * 100
+riskGraph <- MCHistogram +
+  geom_vline(aes(xintercept = riskBoundary),
+             color = "red", 
+             linetype = "dashed", 
+             size = 1) +
+  labs(subtitle = paste("There is a", riskProbability, "percent chance the real world result will be below your risk boundary:", riskBoundary))
+riskGraph
+```
